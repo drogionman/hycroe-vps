@@ -1,12 +1,36 @@
+# Use Ubuntu 22.04 as the base image
 FROM ubuntu:22.04
 
-RUN apt-get update && \
-    apt-get install -y tmate openssh-server openssh-client && \
-    sudo sed -i 's/^#\?\s*PermitRootLogin\s\+.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    echo 'root:root' | chpasswd && \
-    printf '#!/bin/sh\nexit 0' > /usr/sbin/policy-rc.d && \
-    apt-get install -y systemd systemd-sysv dbus dbus-user-session && \
-    printf "systemctl start systemd-logind" >> /etc/profile
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
 
-CMD ["bash"]
+# Install necessary packages
+RUN apt-get update && \
+    apt-get install -y \
+        systemd \
+        systemd-sysv \
+        dbus \
+        dbus-user-session \
+        sudo \
+        openssh-server \
+        openssh-client \
+        tmate && \
+    # Set root password
+    echo 'root:root' | chpasswd && \
+    # Enable root login
+    sed -i 's/#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    mkdir -p /var/run/sshd && \
+    # Prevent services from auto-starting during build
+    printf '#!/bin/sh\nexit 0' > /usr/sbin/policy-rc.d && \
+    chmod +x /usr/sbin/policy-rc.d && \
+    # Set custom shell prompt like root@hycroe:/#
+    echo 'export PS1="\u@hycroe:\w\$ "' >> /root/.bashrc
+
+# Expose SSH port
+EXPOSE 22
+
+# Set default command
+CMD ["/sbin/init"]
+
+# Use systemd as PID 1
 ENTRYPOINT ["/sbin/init"]
