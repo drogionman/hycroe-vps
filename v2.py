@@ -1,4 +1,4 @@
-import random # This is random bullshit
+import random
 import logging
 import subprocess
 import sys
@@ -12,7 +12,7 @@ import docker
 import asyncio
 from discord import app_commands
 
-TOKEN = '' # TOKEN HERE
+TOKEN = ''  # TOKEN HERE
 RAM_LIMIT = '2g'
 SERVER_LIMIT = 12
 database_file = 'database.txt'
@@ -24,8 +24,10 @@ intents.message_content = False
 bot = commands.Bot(command_prefix='/', intents=intents)
 client = docker.from_env()
 
-# port gen forward module < i forgot this shit in the start
-def generate_random_port(): 
+# Embed color constant
+EMBED_COLOR = 0x9B59B6  # Purple color
+
+def generate_random_port():
     return random.randint(1025, 65535)
 
 def add_to_database(user, container_name, ssh_command):
@@ -83,7 +85,7 @@ def get_container_id_from_database(user):
 @bot.event
 async def on_ready():
     change_status.start()
-    print(f'Bot is ready. Logged in as {bot.user}')
+    print(f'✨ Bot is ready. Logged in as {bot.user} ✨')
     await bot.tree.sync()
 
 @tasks.loop(seconds=5)
@@ -92,92 +94,199 @@ async def change_status():
         if os.path.exists(database_file):
             with open(database_file, 'r') as f:
                 lines = f.readlines()
-                instance_count = len(lines)
+            instance_count = len(lines)
         else:
             instance_count = 0
 
-        status = f"with {instance_count} Cloud Instances"
-        await bot.change_presence(activity=discord.Game(name=status))
+        statuses = [
+            f"🌌 Managing {instance_count} Cloud Instances",
+            f"⚡ Powering {instance_count} Servers",
+            f"🔮 Watching over {instance_count} VMs"
+        ]
+        await bot.change_presence(activity=discord.Game(name=random.choice(statuses)))
     except Exception as e:
-        print(f"Failed to update status: {e}")
+        print(f"💥 Failed to update status: {e}")
 
 async def regen_ssh_command(interaction: discord.Interaction, container_name: str):
     user = str(interaction.user)
     container_id = get_container_id_from_database(user, container_name)
 
     if not container_id:
-        await interaction.response.send_message(embed=discord.Embed(description="No active instance found for your user.", color=0xff0000))
+        embed = discord.Embed(
+            title="🚫 Instance Not Found",
+            description="No active instance found for your user.",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
         return
 
     try:
         exec_cmd = await asyncio.create_subprocess_exec("docker", "exec", container_id, "tmate", "-F",
-                                                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                                                       stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     except subprocess.CalledProcessError as e:
-        await interaction.response.send_message(embed=discord.Embed(description=f"Error executing tmate in Docker container: {e}", color=0xff0000))
+        embed = discord.Embed(
+            title="⚠️ Command Error",
+            description=f"Error executing tmate in Docker container:\n```{e}```",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
         return
 
     ssh_session_line = await capture_ssh_session_line(exec_cmd)
     if ssh_session_line:
-        await interaction.user.send(embed=discord.Embed(description=f"### New SSH Session Command: ```{ssh_session_line}```", color=0x00ff00))
-        await interaction.response.send_message(embed=discord.Embed(description="New SSH session generated. Check your DMs for details.", color=0x00ff00))
+        dm_embed = discord.Embed(
+            title="🔑 New SSH Session Generated",
+            description=f"```{ssh_session_line}```",
+            color=EMBED_COLOR
+        )
+        dm_embed.set_footer(text="Keep this secure and don't share it with anyone!")
+        
+        response_embed = discord.Embed(
+            title="✅ Success",
+            description="New SSH session generated. Check your DMs for details!",
+            color=EMBED_COLOR
+        )
+        
+        await interaction.user.send(embed=dm_embed)
+        await interaction.response.send_message(embed=response_embed)
     else:
-        await interaction.response.send_message(embed=discord.Embed(description="Failed to generate new SSH session.", color=0xff0000))
+        embed = discord.Embed(
+            title="❌ Failed",
+            description="Failed to generate new SSH session. Please try again.",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
 
 async def start_server(interaction: discord.Interaction, container_name: str):
     user = str(interaction.user)
     container_id = get_container_id_from_database(user, container_name)
 
     if not container_id:
-        await interaction.response.send_message(embed=discord.Embed(description="No instance found for your user.", color=0xff0000))
+        embed = discord.Embed(
+            title="🚫 Instance Not Found",
+            description="No instance found for your user.",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
         return
 
     try:
         subprocess.run(["docker", "start", container_id], check=True)
         exec_cmd = await asyncio.create_subprocess_exec("docker", "exec", container_id, "tmate", "-F",
-                                                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                                                       stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         ssh_session_line = await capture_ssh_session_line(exec_cmd)
         if ssh_session_line:
-            await interaction.user.send(embed=discord.Embed(description=f"### Instance Started\nSSH Session Command: ```{ssh_session_line}```", color=0x00ff00))
-            await interaction.response.send_message(embed=discord.Embed(description="Instance started successfully. Check your DMs for details.", color=0x00ff00))
+            dm_embed = discord.Embed(
+                title="🚀 Instance Started",
+                description=f"**SSH Session Command:**\n```{ssh_session_line}```",
+                color=EMBED_COLOR
+            )
+            dm_embed.add_field(name="Status", value="🟢 Online", inline=True)
+            dm_embed.add_field(name="RAM", value="2GB", inline=True)
+            dm_embed.add_field(name="CPU", value="2 Cores", inline=True)
+            
+            response_embed = discord.Embed(
+                title="✅ Success",
+                description="Instance started successfully! Check your DMs for details.",
+                color=EMBED_COLOR
+            )
+            
+            await interaction.user.send(embed=dm_embed)
+            await interaction.response.send_message(embed=response_embed)
         else:
-            await interaction.response.send_message(embed=discord.Embed(description="Instance started, but failed to get SSH session line.", color=0xff0000))
+            embed = discord.Embed(
+                title="⚠️ Partial Success",
+                description="Instance started, but failed to get SSH session line.",
+                color=EMBED_COLOR
+            )
+            await interaction.response.send_message(embed=embed)
     except subprocess.CalledProcessError as e:
-        await interaction.response.send_message(embed=discord.Embed(description=f"Error starting instance: {e}", color=0xff0000))
+        embed = discord.Embed(
+            title="❌ Error",
+            description=f"Error starting instance:\n```{e}```",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
 
 async def stop_server(interaction: discord.Interaction, container_name: str):
     user = str(interaction.user)
     container_id = get_container_id_from_database(user, container_name)
 
     if not container_id:
-        await interaction.response.send_message(embed=discord.Embed(description="No instance found for your user.", color=0xff0000))
+        embed = discord.Embed(
+            title="🚫 Instance Not Found",
+            description="No instance found for your user.",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
         return
 
     try:
         subprocess.run(["docker", "stop", container_id], check=True)
-        await interaction.response.send_message(embed=discord.Embed(description="Instance stopped successfully.", color=0x00ff00))
+        embed = discord.Embed(
+            title="🛑 Instance Stopped",
+            description="Instance stopped successfully!",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
     except subprocess.CalledProcessError as e:
-        await interaction.response.send_message(embed=discord.Embed(description=f"Error stopping instance: {e}", color=0xff0000))
+        embed = discord.Embed(
+            title="❌ Error",
+            description=f"Error stopping instance:\n```{e}```",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
 
 async def restart_server(interaction: discord.Interaction, container_name: str):
     user = str(interaction.user)
     container_id = get_container_id_from_database(user, container_name)
 
     if not container_id:
-        await interaction.response.send_message(embed=discord.Embed(description="No instance found for your user.", color=0xff0000))
+        embed = discord.Embed(
+            title="🚫 Instance Not Found",
+            description="No instance found for your user.",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
         return
 
     try:
         subprocess.run(["docker", "restart", container_id], check=True)
         exec_cmd = await asyncio.create_subprocess_exec("docker", "exec", container_id, "tmate", "-F",
-                                                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                                                       stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         ssh_session_line = await capture_ssh_session_line(exec_cmd)
         if ssh_session_line:
-            await interaction.user.send(embed=discord.Embed(description=f"### Instance Restarted\nSSH Session Command: ```{ssh_session_line}```\nOS: Ubuntu 22.04", color=0x00ff00))
-            await interaction.response.send_message(embed=discord.Embed(description="Instance restarted successfully. Check your DMs for details.", color=0x00ff00))
+            dm_embed = discord.Embed(
+                title="🔄 Instance Restarted",
+                description=f"**SSH Session Command:**\n```{ssh_session_line}```\n**OS:** Ubuntu 22.04",
+                color=EMBED_COLOR
+            )
+            dm_embed.add_field(name="Status", value="🟡 Restarting", inline=True)
+            dm_embed.add_field(name="RAM", value="2GB", inline=True)
+            dm_embed.add_field(name="CPU", value="2 Cores", inline=True)
+            
+            response_embed = discord.Embed(
+                title="✅ Success",
+                description="Instance restarted successfully! Check your DMs for details.",
+                color=EMBED_COLOR
+            )
+            
+            await interaction.user.send(embed=dm_embed)
+            await interaction.response.send_message(embed=response_embed)
         else:
-            await interaction.response.send_message(embed=discord.Embed(description="Instance restarted, but failed to get SSH session line.", color=0xff0000))
+            embed = discord.Embed(
+                title="⚠️ Partial Success",
+                description="Instance restarted, but failed to get SSH session line.",
+                color=EMBED_COLOR
+            )
+            await interaction.response.send_message(embed=embed)
     except subprocess.CalledProcessError as e:
-        await interaction.response.send_message(embed=discord.Embed(description=f"Error restarting instance: {e}", color=0xff0000))
+        embed = discord.Embed(
+            title="❌ Error",
+            description=f"Error restarting instance:\n```{e}```",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
 
 def get_container_id_from_database(user, container_name):
     if not os.path.exists(database_file):
@@ -190,9 +299,7 @@ def get_container_id_from_database(user, container_name):
 
 async def execute_command(command):
     process = await asyncio.create_subprocess_shell(
-        command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+        command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
     stdout, stderr = await process.communicate()
     return stdout.decode(), stderr.decode()
@@ -209,31 +316,46 @@ async def capture_output(process, keyword):
             return output
     return None
 
-@bot.tree.command(name="port-add", description="Adds a port forwarding rule")
+@bot.tree.command(name="port-add", description="🔗 Adds a port forwarding rule")
 @app_commands.describe(container_name="The name of the container", container_port="The port in the container")
 async def port_add(interaction: discord.Interaction, container_name: str, container_port: int):
-    await interaction.response.send_message(embed=discord.Embed(description="Setting up port forwarding. This might take a moment...", color=0x00ff00))
+    embed = discord.Embed(
+        title="⚙️ Setting Up Port Forwarding",
+        description="Please wait while we set up port forwarding...",
+        color=EMBED_COLOR
+    )
+    await interaction.response.send_message(embed=embed)
 
     public_port = generate_random_port()
 
-    # Set up port forwarding inside the container
     command = f"ssh -o StrictHostKeyChecking=no -R {public_port}:localhost:{container_port} serveo.net -N -f"
 
     try:
-        # Run the command in the background using Docker exec
         await asyncio.create_subprocess_exec(
             "docker", "exec", container_name, "bash", "-c", command,
-            stdout=asyncio.subprocess.DEVNULL,  # No need to capture output
-            stderr=asyncio.subprocess.DEVNULL  # No need to capture errors
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL
         )
 
-        # Respond immediately with the port and public IP
-        await interaction.followup.send(embed=discord.Embed(description=f"Port added successfully. Your service is hosted on {PUBLIC_IP}:{public_port}.", color=0x00ff00))
+        success_embed = discord.Embed(
+            title="🔗 Port Forwarding Added",
+            description=f"Your service is now accessible at:\n`{PUBLIC_IP}:{public_port}`",
+            color=EMBED_COLOR
+        )
+        success_embed.add_field(name="Container Port", value=str(container_port), inline=True)
+        success_embed.add_field(name="Public Port", value=str(public_port), inline=True)
+        
+        await interaction.followup.send(embed=success_embed)
 
     except Exception as e:
-        await interaction.followup.send(embed=discord.Embed(description=f"An unexpected error occurred: {e}", color=0xff0000))
+        error_embed = discord.Embed(
+            title="❌ Port Forwarding Failed",
+            description=f"An error occurred:\n```{e}```",
+            color=EMBED_COLOR
+        )
+        await interaction.followup.send(embed=error_embed)
 
-@bot.tree.command(name="port-http", description="Forward HTTP traffic to your container")
+@bot.tree.command(name="port-http", description="🌐 Forward HTTP traffic to your container")
 @app_commands.describe(container_name="The name of your container", container_port="The port inside the container to forward")
 async def port_forward_website(interaction: discord.Interaction, container_name: str, container_port: int):
     try:
@@ -244,143 +366,259 @@ async def port_forward_website(interaction: discord.Interaction, container_name:
         url_line = await capture_output(exec_cmd, "Forwarding HTTP traffic from")
         if url_line:
             url = url_line.split(" ")[-1]
-            await interaction.response.send_message(embed=discord.Embed(description=f"Website forwarded successfully. Your website is accessible at {url}.", color=0x00ff00))
+            embed = discord.Embed(
+                title="🌐 Website Forwarded",
+                description=f"Your website is now accessible at:\n[Click Here]({url})",
+                color=EMBED_COLOR
+            )
+            await interaction.response.send_message(embed=embed)
         else:
-            await interaction.response.send_message(embed=discord.Embed(description="Failed to capture forwarding URL.", color=0xff0000))
+            embed = discord.Embed(
+                title="⚠️ Forwarding Failed",
+                description="Failed to capture forwarding URL.",
+                color=EMBED_COLOR
+            )
+            await interaction.response.send_message(embed=embed)
     except subprocess.CalledProcessError as e:
-        await interaction.response.send_message(embed=discord.Embed(description=f"Error executing website forwarding: {e}", color=0xff0000))
+        embed = discord.Embed(
+            title="❌ Error",
+            description=f"Error executing website forwarding:\n```{e}```",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
 
 async def create_server_task(interaction):
-    await interaction.response.send_message(embed=discord.Embed(description="Creating Instance, This takes a few seconds.", color=0x00ff00))
+    embed = discord.Embed(
+        title="⚙️ Creating Instance",
+        description="Please wait while we create your Ubuntu 22.04 instance...",
+        color=EMBED_COLOR
+    )
+    await interaction.response.send_message(embed=embed)
+    
     user = str(interaction.user)
     if count_user_servers(user) >= SERVER_LIMIT:
-        await interaction.followup.send(embed=discord.Embed(description="```Error: Instance Limit-reached```", color=0xff0000))
+        embed = discord.Embed(
+            title="🚫 Limit Reached",
+            description="You've reached your instance limit!",
+            color=EMBED_COLOR
+        )
+        await interaction.followup.send(embed=embed)
         return
 
     image = "ubuntu-22.04-with-tmate"
-    
+
     try:
         container_id = subprocess.check_output([
             "docker", "run", "-itd", "--privileged", "--cap-add=ALL", image
         ]).strip().decode('utf-8')
     except subprocess.CalledProcessError as e:
-        await interaction.followup.send(embed=discord.Embed(description=f"Error creating Docker container: {e}", color=0xff0000))
+        embed = discord.Embed(
+            title="❌ Creation Failed",
+            description=f"Error creating Docker container:\n```{e}```",
+            color=EMBED_COLOR
+        )
+        await interaction.followup.send(embed=embed)
         return
 
     try:
         exec_cmd = await asyncio.create_subprocess_exec("docker", "exec", container_id, "tmate", "-F",
-                                                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                                                      stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     except subprocess.CalledProcessError as e:
-        await interaction.followup.send(embed=discord.Embed(description=f"Error executing tmate in Docker container: {e}", color=0xff0000))
+        embed = discord.Embed(
+            title="❌ SSH Setup Failed",
+            description=f"Error executing tmate in Docker container:\n```{e}```",
+            color=EMBED_COLOR
+        )
+        await interaction.followup.send(embed=embed)
         subprocess.run(["docker", "kill", container_id])
         subprocess.run(["docker", "rm", container_id])
         return
 
     ssh_session_line = await capture_ssh_session_line(exec_cmd)
     if ssh_session_line:
-        await interaction.user.send(embed=discord.Embed(description=f"### Successfully created Instance\nSSH Session Command: ```{ssh_session_line}```\nOS: Ubuntu 22.04", color=0x00ff00))
+        dm_embed = discord.Embed(
+            title="🎉 Instance Created",
+            description=f"**SSH Session Command:**\n```{ssh_session_line}```",
+            color=EMBED_COLOR
+        )
+        dm_embed.add_field(name="OS", value="Ubuntu 22.04", inline=True)
+        dm_embed.add_field(name="RAM", value="2GB", inline=True)
+        dm_embed.add_field(name="CPU", value="2 Cores", inline=True)
+        dm_embed.set_footer(text="This instance will auto-delete after 4 hours of inactivity")
+        
+        response_embed = discord.Embed(
+            title="✅ Success",
+            description="Instance created successfully! Check your DMs for details.",
+            color=EMBED_COLOR
+        )
+        
+        await interaction.user.send(embed=dm_embed)
         add_to_database(user, container_id, ssh_session_line)
-        await interaction.followup.send(embed=discord.Embed(description="Instance created successfully. Check your DMs for details.", color=0x00ff00))
+        await interaction.followup.send(embed=response_embed)
     else:
-        await interaction.followup.send(embed=discord.Embed(description="Something went wrong or the Instance is taking longer than expected. If this problem continues, Contact Support.", color=0xff0000))
+        embed = discord.Embed(
+            title="⚠️ Timeout",
+            description="Instance creation is taking longer than expected. Please try again later.",
+            color=EMBED_COLOR
+        )
+        await interaction.followup.send(embed=embed)
         subprocess.run(["docker", "kill", container_id])
         subprocess.run(["docker", "rm", container_id])
 
 async def create_server_task_debian(interaction):
-    await interaction.response.send_message(embed=discord.Embed(description="Creating Instance, This takes a few seconds.", color=0x00ff00))
+    embed = discord.Embed(
+        title="⚙️ Creating Instance",
+        description="Please wait while we create your Debian instance...",
+        color=EMBED_COLOR
+    )
+    await interaction.response.send_message(embed=embed)
+    
     user = str(interaction.user)
     if count_user_servers(user) >= SERVER_LIMIT:
-        await interaction.followup.send(embed=discord.Embed(description="```Error: Instance Limit-reached```", color=0xff0000))
+        embed = discord.Embed(
+            title="🚫 Limit Reached",
+            description="You've reached your instance limit!",
+            color=EMBED_COLOR
+        )
+        await interaction.followup.send(embed=embed)
         return
 
     image = "debian-with-tmate"
-    
+
     try:
         container_id = subprocess.check_output([
             "docker", "run", "-itd", "--privileged", "--cap-add=ALL", image
         ]).strip().decode('utf-8')
     except subprocess.CalledProcessError as e:
-        await interaction.followup.send(embed=discord.Embed(description=f"Error creating Docker container: {e}", color=0xff0000))
+        embed = discord.Embed(
+            title="❌ Creation Failed",
+            description=f"Error creating Docker container:\n```{e}```",
+            color=EMBED_COLOR
+        )
+        await interaction.followup.send(embed=embed)
         return
 
     try:
         exec_cmd = await asyncio.create_subprocess_exec("docker", "exec", container_id, "tmate", "-F",
-                                                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                                                      stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     except subprocess.CalledProcessError as e:
-        await interaction.followup.send(embed=discord.Embed(description=f"Error executing tmate in Docker container: {e}", color=0xff0000))
+        embed = discord.Embed(
+            title="❌ SSH Setup Failed",
+            description=f"Error executing tmate in Docker container:\n```{e}```",
+            color=EMBED_COLOR
+        )
+        await interaction.followup.send(embed=embed)
         subprocess.run(["docker", "kill", container_id])
         subprocess.run(["docker", "rm", container_id])
         return
 
     ssh_session_line = await capture_ssh_session_line(exec_cmd)
     if ssh_session_line:
-        await interaction.user.send(embed=discord.Embed(description=f"### Successfully created Instance\nSSH Session Command: ```{ssh_session_line}```\nOS: Debian", color=0x00ff00))
+        dm_embed = discord.Embed(
+            title="🎉 Instance Created",
+            description=f"**SSH Session Command:**\n```{ssh_session_line}```",
+            color=EMBED_COLOR
+        )
+        dm_embed.add_field(name="OS", value="Debian", inline=True)
+        dm_embed.add_field(name="RAM", value="2GB", inline=True)
+        dm_embed.add_field(name="CPU", value="2 Cores", inline=True)
+        dm_embed.set_footer(text="This instance will auto-delete after 4 hours of inactivity")
+        
+        response_embed = discord.Embed(
+            title="✅ Success",
+            description="Instance created successfully! Check your DMs for details.",
+            color=EMBED_COLOR
+        )
+        
+        await interaction.user.send(embed=dm_embed)
         add_to_database(user, container_id, ssh_session_line)
-        await interaction.followup.send(embed=discord.Embed(description="Instance created successfully. Check your DMs for details.", color=0x00ff00))
+        await interaction.followup.send(embed=response_embed)
     else:
-        await interaction.followup.send(embed=discord.Embed(description="Something went wrong or the Instance is taking longer than expected. If this problem continues, Contact Support.", color=0xff0000))
+        embed = discord.Embed(
+            title="⚠️ Timeout",
+            description="Instance creation is taking longer than expected. Please try again later.",
+            color=EMBED_COLOR
+        )
+        await interaction.followup.send(embed=embed)
         subprocess.run(["docker", "kill", container_id])
         subprocess.run(["docker", "rm", container_id])
 
-@bot.tree.command(name="deploy-ubuntu", description="Creates a new Instance with Ubuntu 22.04")
+@bot.tree.command(name="deploy-ubuntu", description="🚀 Creates a new Instance with Ubuntu 22.04")
 async def deploy_ubuntu(interaction: discord.Interaction):
     await create_server_task(interaction)
 
-@bot.tree.command(name="deploy-debian", description="Creates a new Instance with Debian 12")
-async def deploy_ubuntu(interaction: discord.Interaction):
+@bot.tree.command(name="deploy-debian", description="🚀 Creates a new Instance with Debian 12")
+async def deploy_debian(interaction: discord.Interaction):
     await create_server_task_debian(interaction)
 
-@bot.tree.command(name="regen-ssh", description="Generates a new SSH session for your instance")
+@bot.tree.command(name="regen-ssh", description="🔑 Generates a new SSH session for your instance")
 @app_commands.describe(container_name="The name/ssh-command of your Instance")
 async def regen_ssh(interaction: discord.Interaction, container_name: str):
     await regen_ssh_command(interaction, container_name)
 
-@bot.tree.command(name="start", description="Starts your instance")
+@bot.tree.command(name="start", description="🟢 Starts your instance")
 @app_commands.describe(container_name="The name/ssh-command of your Instance")
 async def start(interaction: discord.Interaction, container_name: str):
     await start_server(interaction, container_name)
 
-@bot.tree.command(name="stop", description="Stops your instance")
+@bot.tree.command(name="stop", description="🛑 Stops your instance")
 @app_commands.describe(container_name="The name/ssh-command of your Instance")
 async def stop(interaction: discord.Interaction, container_name: str):
     await stop_server(interaction, container_name)
 
-@bot.tree.command(name="restart", description="Restarts your instance")
+@bot.tree.command(name="restart", description="🔄 Restarts your instance")
 @app_commands.describe(container_name="The name/ssh-command of your Instance")
 async def restart(interaction: discord.Interaction, container_name: str):
     await restart_server(interaction, container_name)
 
-@bot.tree.command(name="ping", description="Check the bot's latency.")
+@bot.tree.command(name="ping", description="🏓 Check the bot's latency.")
 async def ping(interaction: discord.Interaction):
     latency = round(bot.latency * 1000)
     embed = discord.Embed(
         title="🏓 Pong!",
-        description=f"Latency: {latency}ms",
-        color=discord.Color.green()
+        description=f"⚡ Bot latency: **{latency}ms**",
+        color=EMBED_COLOR
     )
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="list", description="Lists all your Instances")
+@bot.tree.command(name="list", description="📜 Lists all your Instances")
 async def list_servers(interaction: discord.Interaction):
     user = str(interaction.user)
     servers = get_user_servers(user)
     if servers:
-        embed = discord.Embed(title="Your Instances", color=0x00ff00)
+        embed = discord.Embed(
+            title=f"📋 Your Instances ({len(servers)}/{SERVER_LIMIT})",
+            color=EMBED_COLOR
+        )
         for server in servers:
             _, container_name, _ = server.split('|')
-            embed.add_field(name=container_name, value="Description: A server with 32GB RAM and 8 cores.", inline=False)
+            embed.add_field(
+                name=f"🖥️ {container_name}",
+                value="▫️ OS: Ubuntu 22.04\n▫️ RAM: 2GB\n▫️ CPU: 2 Cores",
+                inline=False
+            )
         await interaction.response.send_message(embed=embed)
     else:
-        await interaction.response.send_message(embed=discord.Embed(description="You have no servers.", color=0xff0000))
+        embed = discord.Embed(
+            title="📭 No Instances Found",
+            description="You don't have any active instances.",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="remove", description="Removes an Instance")
+@bot.tree.command(name="remove", description="❌ Removes an Instance")
 @app_commands.describe(container_name="The name/ssh-command of your Instance")
 async def remove_server(interaction: discord.Interaction, container_name: str):
     user = str(interaction.user)
     container_id = get_container_id_from_database(user, container_name)
 
     if not container_id:
-        await interaction.response.send_message(embed=discord.Embed(description="No Instance found for your user with that name.", color=0xff0000))
+        embed = discord.Embed(
+            title="🚫 Instance Not Found",
+            description="No Instance found for your user with that name.",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
         return
 
     try:
@@ -389,25 +627,47 @@ async def remove_server(interaction: discord.Interaction, container_name: str):
         
         remove_from_database(container_id)
         
-        await interaction.response.send_message(embed=discord.Embed(description=f"Instance '{container_name}' removed successfully.", color=0x00ff00))
+        embed = discord.Embed(
+            title="🗑️ Instance Removed",
+            description=f"Instance '{container_name}' was successfully removed.",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
     except subprocess.CalledProcessError as e:
-        await interaction.response.send_message(embed=discord.Embed(description=f"Error removing instance: {e}", color=0xff0000))
+        embed = discord.Embed(
+            title="❌ Removal Failed",
+            description=f"Error removing instance:\n```{e}```",
+            color=EMBED_COLOR
+        )
+        await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="help", description="Shows the help message")
+@bot.tree.command(name="help", description="ℹ️ Shows the help message")
 async def help_command(interaction: discord.Interaction):
-    embed = discord.Embed(title="Help", color=0x00ff00)
-    embed.add_field(name="/deploy-ubuntu", value="Creates a new Instance with Ubuntu 22.04.", inline=False)
-    embed.add_field(name="/deploy-debian", value="Creates a new Instance with Debian 12.", inline=False)
-    embed.add_field(name="/remove <ssh_command/Name>", value="Removes a server", inline=False)
-    embed.add_field(name="/start <ssh_command/Name>", value="Start a server.", inline=False)
-    embed.add_field(name="/stop <ssh_command/Name>", value="Stop a server.", inline=False)
-    embed.add_field(name="/regen-ssh <ssh_command/Name>", value="Regenerates SSH cred", inline=False)
-    embed.add_field(name="/restart <ssh_command/Name>", value="Stop a server.", inline=False)
-    embed.add_field(name="/list", value="List all your servers", inline=False)
-    embed.add_field(name="/ping", value="Check the bot's latency.", inline=False)
-    embed.add_field(name="/port-http", value="Forward a http website.", inline=False)
-    embed.add_field(name="/port-add", value="Forward a port.", inline=False)
+    embed = discord.Embed(
+        title="ℹ️ Cloud Instance Bot Help",
+        description="Here are all the available commands:",
+        color=EMBED_COLOR
+    )
+    
+    commands_list = [
+        ("🚀 /deploy-ubuntu", "Creates a new Ubuntu 22.04 instance"),
+        ("🚀 /deploy-debian", "Creates a new Debian 12 instance"),
+        ("🗑️ /remove <name>", "Removes a server"),
+        ("🟢 /start <name>", "Start a server"),
+        ("🛑 /stop <name>", "Stop a server"),
+        ("🔑 /regen-ssh <name>", "Regenerates SSH credentials"),
+        ("🔄 /restart <name>", "Restart a server"),
+        ("📜 /list", "List all your servers"),
+        ("🏓 /ping", "Check the bot's latency"),
+        ("🌐 /port-http", "Forward a HTTP website"),
+        ("🔗 /port-add", "Forward a TCP port"),
+        ("ℹ️ /help", "Show this help message")
+    ]
+    
+    for cmd, desc in commands_list:
+        embed.add_field(name=cmd, value=desc, inline=False)
+    
+    embed.set_footer(text="Need more help? Contact server staff!")
     await interaction.response.send_message(embed=embed)
 
 bot.run(TOKEN)
-
