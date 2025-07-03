@@ -2,6 +2,11 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Set hostname to "hycroe" and configure root@hycroe
+RUN echo "hycroe" > /etc/hostname && \
+    echo "127.0.0.1 hycroe" >> /etc/hosts
+
+# Install essential packages and configure environment
 RUN apt-get update && \
     apt-get install -y \
         systemd \
@@ -12,11 +17,20 @@ RUN apt-get update && \
         openssh-server \
         openssh-client \
         tmate && \
-    echo 'root:root' | chpasswd && \
-    sed -i 's/#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    mkdir -p /var/run/sshd && \
+    mkdir -p /var/run/sshd /root/.ssh && \
+    sed -i 's/#\?PermitRootLogin.*/PermitRootLogin without-password/' /etc/ssh/sshd_config && \
+    sed -i 's/#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && \
     printf '#!/bin/sh\nexit 0' > /usr/sbin/policy-rc.d
 
-CMD ["/sbin/init"]
+# Optionally copy your public SSH key for root login (or leave empty for container use only)
+# ADD your_authorized_keys_file /root/.ssh/authorized_keys
 
+# Permissions
+RUN chmod 700 /root/.ssh
+
+# Optional: Disable motd to reduce noise
+RUN > /etc/motd && > /etc/update-motd.d/00-header
+
+# Default command and entrypoint
+CMD ["/sbin/init"]
 ENTRYPOINT ["/sbin/init"]
