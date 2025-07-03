@@ -1,7 +1,12 @@
-FROM debian:12
+FROM debian:bullseye
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Set hostname to "hycroe"
+RUN echo "hycroe" > /etc/hostname && \
+    echo "127.0.0.1 hycroe" >> /etc/hosts
+
+# Install systemd, SSH, tmate, and other dependencies
 RUN apt-get update && \
     apt-get install -y \
         systemd \
@@ -12,11 +17,19 @@ RUN apt-get update && \
         openssh-server \
         openssh-client \
         tmate && \
-    echo 'root:root' | chpasswd && \
-    sed -i 's/#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    mkdir -p /var/run/sshd && \
+    mkdir -p /var/run/sshd /root/.ssh && \
+    sed -i 's/#\?PermitRootLogin.*/PermitRootLogin without-password/' /etc/ssh/sshd_config && \
+    sed -i 's/#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && \
     printf '#!/bin/sh\nexit 0' > /usr/sbin/policy-rc.d
 
-CMD ["/sbin/init"]
+# (Optional) Add your public key for SSH login
+# ADD authorized_keys /root/.ssh/authorized_keys
 
+RUN chmod 700 /root/.ssh
+
+# Clean motd (optional)
+RUN > /etc/motd
+
+# Default command
+CMD ["/sbin/init"]
 ENTRYPOINT ["/sbin/init"]
